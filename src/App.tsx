@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Moon, RotateCcw, Sprout, Sun } from "lucide-react"
+import { Moon, RotateCcw, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import {
@@ -14,6 +14,10 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Toaster } from "@/components/ui/sonner"
+import ministryLogo from "@/assets/Ministry-of-agriculture-icon.png"
+import ministryWordmark from "@/assets/Ministry-of-agriculture.png"
+import ministryWordmarkWhite from "@/assets/Ministry-of-agriculture-w.png"
+import izyaneLogo from "@/assets/iZyane-white.png"
 import { PROVINCES, ROLES, type RoleId } from "@/data/demo"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -54,20 +58,24 @@ export default function App() {
   return (
     <div className="flex min-h-svh flex-col">
       <Header view={view} />
-      <div className="border-b border-accent/30 bg-accent/10 text-sm print:hidden">
+      {/* <div className="border-b border-accent/30 bg-accent/10 text-sm print:hidden">
         <div className="mx-auto max-w-7xl px-4 py-2 sm:px-6">
           <strong className="text-warning">Demonstration build.</strong> All figures, agency statuses and dates are synthetic and
           illustrative, not official statistics. Changes you make are saved in this browser only.
         </div>
-      </div>
+      </div> */}
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
         <Component />
       </main>
       <footer className="border-t bg-primary text-primary-foreground print:hidden">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-6 text-sm sm:px-6">
-          <span className="font-semibold">Ministry of Agriculture, Republic of Zambia</span>
-          <span className="opacity-80">
-            Prototype prepared by iZyane InovSolutions &amp; Payments for UNDP Zambia RFP UNDP-ZMB-00619 (AA4DPI). Synthetic data only.
+          {/* White lettering on the dark-green light-mode footer, black lettering on the lighter dark-mode footer. */}
+          <img src={ministryWordmarkWhite} alt="Ministry of Agriculture" className="h-12 w-auto dark:hidden" />
+          <img src={ministryWordmark} alt="Ministry of Agriculture" className="hidden h-12 w-auto dark:block" />
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="opacity-80">Prototype prepared by</span>
+            <img src={izyaneLogo} alt="iZyane InovSolutions &amp; Payments" className="h-10 w-auto" />
+            <span className="opacity-80">for UNDP Zambia RFP UNDP-ZMB-00619 (AA4DPI). Synthetic data only.</span>
           </span>
         </div>
         <div className="h-1.5 bg-accent" />
@@ -86,8 +94,8 @@ function Header({ view }: { view: ViewId }) {
       <div className="bg-primary text-primary-foreground">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-6">
           <a href="#overview" className="flex items-center gap-3">
-            <span className="flex size-10 items-center justify-center rounded-full bg-accent text-accent-foreground">
-              <Sprout className="size-6" />
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white p-1 ring-2 ring-accent">
+              <img src={ministryLogo} alt="Coat of arms of Zambia" className="size-full object-contain" />
             </span>
             <span className="leading-tight">
               <b className="block text-2xl tracking-tight">AgID</b>
