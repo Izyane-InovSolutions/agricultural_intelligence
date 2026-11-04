@@ -1,12 +1,13 @@
 import { useState } from "react"
-import { CircleAlert, CircleCheck, Info, MessageSquare, TriangleAlert, UserRound } from "lucide-react"
+import { Bell, ChevronRight, CircleAlert, CircleCheck, Info, MessageSquare, TriangleAlert, UserRound } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { ROLES, type RoleId } from "@/data/demo"
@@ -55,82 +56,126 @@ function useAlertItems(): AlertItem[] {
 export function AlertsPanel() {
   const { getAlert } = useStore()
   const items = useAlertItems()
+  const [drawer, setDrawer] = useState(false)
   const [showAcked, setShowAcked] = useState(false)
   const [open, setOpen] = useState<AlertItem | null>(null)
   const acked = items.filter((a) => getAlert(a.id).ack)
-  const visible = showAcked ? items : items.filter((a) => !getAlert(a.id).ack)
+  const pending = items.filter((a) => !getAlert(a.id).ack)
+  const visible = showAcked ? items : pending
+  const risks = pending.filter((a) => a.kind === "risk").length
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-xl">Needs attention</CardTitle>
-        <CardAction>
-          <Badge variant={items.length - acked.length ? "default" : "outline"}>{items.length - acked.length} open</Badge>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {visible.length === 0 ? (
-          <p className="flex items-center gap-2 text-muted-foreground">
-            <CircleCheck className="size-4 text-primary" />
-            {items.length ? "Every alert in this scope has been acknowledged." : "Nothing needs attention in this scope."}
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-2.5">
-            {visible.map((a) => {
-              const { border, Icon, icon } = STYLE[a.kind]
-              const st = getAlert(a.id)
-              return (
-                <li key={a.id}>
-                  <button
-                    type="button"
-                    onClick={() => setOpen(a)}
-                    className={cn(
-                      "flex w-full gap-2.5 rounded-r-md border-l-4 bg-muted/60 px-3 py-2.5 text-left transition-colors hover:bg-muted",
-                      border,
-                      st.ack && "opacity-60",
-                    )}
-                  >
-                    <Icon className={cn("mt-0.5 size-4 shrink-0", icon)} />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-semibold">{a.title}</div>
-                      <div className="text-sm text-muted-foreground">{a.msg}</div>
-                      {(st.ack || st.assignee || st.notes.length > 0) && (
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {st.ack && (
-                            <Badge variant="outline" className="border-primary/30 text-primary">
-                              <CircleCheck /> Acknowledged
-                            </Badge>
-                          )}
-                          {st.assignee && (
-                            <Badge variant="outline">
-                              <UserRound /> {ROLES[st.assignee].name}
-                            </Badge>
-                          )}
-                          {st.notes.length > 0 && (
-                            <Badge variant="outline">
-                              <MessageSquare /> {st.notes.length}
-                            </Badge>
+    <>
+      <Card size="sm" className={cn("border-l-4 transition-shadow hover:shadow-md", pending.length ? "border-l-warning" : "border-l-primary")}>
+        <CardContent>
+          <button
+            type="button"
+            onClick={() => setDrawer(true)}
+            aria-haspopup="dialog"
+            className="flex w-full items-center gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span
+              className={cn(
+                "flex size-10 shrink-0 items-center justify-center rounded-full",
+                pending.length ? "bg-warning/15 text-warning" : "bg-primary/10 text-primary",
+              )}
+            >
+              {pending.length ? <Bell className="size-5" /> : <CircleCheck className="size-5" />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-2 text-lg font-semibold">
+                Needs attention
+                <Badge variant={pending.length ? "default" : "outline"}>{pending.length} open</Badge>
+              </span>
+              <span className="block text-sm text-muted-foreground">
+                {pending.length === 0
+                  ? items.length
+                    ? "Every alert in this scope has been acknowledged."
+                    : "Nothing needs attention in this scope."
+                  : risks
+                    ? `${risks} high risk, ${pending.length - risks} other. Select to review.`
+                    : "Select to review and assign."}
+              </span>
+            </span>
+            <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
+          </button>
+        </CardContent>
+      </Card>
+
+      <Sheet open={drawer} onOpenChange={setDrawer}>
+        <SheetContent className="w-full overflow-y-auto data-[side=right]:sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2 text-xl text-primary">
+              Needs attention
+              <Badge variant={pending.length ? "default" : "outline"}>{pending.length} open</Badge>
+            </SheetTitle>
+            <SheetDescription>Select an alert to assign it, add notes or acknowledge it.</SheetDescription>
+          </SheetHeader>
+          <div className="space-y-3 px-4 pb-6">
+            {visible.length === 0 ? (
+              <p className="flex items-center gap-2 text-muted-foreground">
+                <CircleCheck className="size-4 text-primary" />
+                {items.length ? "Every alert in this scope has been acknowledged." : "Nothing needs attention in this scope."}
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2.5">
+                {visible.map((a) => {
+                  const { border, Icon, icon } = STYLE[a.kind]
+                  const st = getAlert(a.id)
+                  return (
+                    <li key={a.id}>
+                      <button
+                        type="button"
+                        onClick={() => setOpen(a)}
+                        className={cn(
+                          "flex w-full gap-2.5 rounded-r-md border-l-4 bg-muted/60 px-3 py-2.5 text-left transition-colors hover:bg-muted",
+                          border,
+                          st.ack && "opacity-60",
+                        )}
+                      >
+                        <Icon className={cn("mt-0.5 size-4 shrink-0", icon)} />
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold">{a.title}</div>
+                          <div className="text-sm text-muted-foreground">{a.msg}</div>
+                          {(st.ack || st.assignee || st.notes.length > 0) && (
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {st.ack && (
+                                <Badge variant="outline" className="border-primary/30 text-primary">
+                                  <CircleCheck /> Acknowledged
+                                </Badge>
+                              )}
+                              {st.assignee && (
+                                <Badge variant="outline">
+                                  <UserRound /> {ROLES[st.assignee].name}
+                                </Badge>
+                              )}
+                              {st.notes.length > 0 && (
+                                <Badge variant="outline">
+                                  <MessageSquare /> {st.notes.length}
+                                </Badge>
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
-                    </div>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-        {acked.length > 0 && (
-          <div className="flex items-center gap-2 pt-1 text-sm">
-            <Switch id="show-acked" checked={showAcked} onCheckedChange={setShowAcked} />
-            <Label htmlFor="show-acked" className="font-normal text-muted-foreground">
-              Show {acked.length} acknowledged
-            </Label>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+            {acked.length > 0 && (
+              <div className="flex items-center gap-2 pt-1 text-sm">
+                <Switch id="show-acked" checked={showAcked} onCheckedChange={setShowAcked} />
+                <Label htmlFor="show-acked" className="font-normal text-muted-foreground">
+                  Show {acked.length} acknowledged
+                </Label>
+              </div>
+            )}
           </div>
-        )}
-      </CardContent>
+        </SheetContent>
+      </Sheet>
       <AlertDialog item={open} onClose={() => setOpen(null)} />
-    </Card>
+    </>
   )
 }
 
