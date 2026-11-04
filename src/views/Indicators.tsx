@@ -38,7 +38,34 @@ export function Indicators() {
         </span>
       </div>
 
-      <Card className="py-0">
+      {/* Phones get one card per indicator; wider screens get the table. */}
+      <ul className="space-y-3 md:hidden">
+        {rows.map((r) => (
+          <li key={r.name}>
+            <Card size="sm">
+              <CardContent className="space-y-2">
+                <b className="text-base text-primary">{r.name}</b>
+                <p>{r.definition}</p>
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                  <dt className="text-muted-foreground">Unit</dt>
+                  <dd>{r.unit}</dd>
+                  <dt className="text-muted-foreground">Breakdowns</dt>
+                  <dd>{r.breakdowns}</dd>
+                  <dt className="text-muted-foreground">How often</dt>
+                  <dd>{r.frequency}</dd>
+                  <dt className="text-muted-foreground">Source</dt>
+                  <dd>{r.source}</dd>
+                  <dt className="text-muted-foreground">Steward</dt>
+                  <dd>{r.steward}</dd>
+                </dl>
+              </CardContent>
+            </Card>
+          </li>
+        ))}
+        {rows.length === 0 && <li className="py-8 text-center text-muted-foreground">No indicator matches "{q}".</li>}
+      </ul>
+
+      <Card className="hidden py-0 md:flex">
         <CardContent className="px-0">
           <Table>
             <TableHeader className="bg-muted/60">

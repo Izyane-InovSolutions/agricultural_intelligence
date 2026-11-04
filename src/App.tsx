@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react"
-import { Moon, RotateCcw, Sun } from "lucide-react"
+import { lazy, Suspense, useEffect, useState } from "react"
+import { CircleHelp, Moon, RotateCcw, Sun, WifiOff } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,17 +15,19 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Toaster } from "@/components/ui/sonner"
 import ministryLogo from "@/assets/Ministry-of-agriculture-icon.png"
-import ministryWordmark from "@/assets/Ministry-of-agriculture.png"
 import ministryWordmarkWhite from "@/assets/Ministry-of-agriculture-w.png"
 import izyaneLogo from "@/assets/iZyane-white.png"
+import { Tour } from "@/components/Tour"
 import { PROVINCES, ROLES, type RoleId } from "@/data/demo"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
-import { Benefits } from "@/views/Benefits"
-import { Briefing } from "@/views/Briefing"
-import { Indicators } from "@/views/Indicators"
-import { Overview } from "@/views/Overview"
-import { Sources } from "@/views/Sources"
+
+// Each page is its own download, so the first visit only fetches the page being opened.
+const Overview = lazy(() => import("@/views/Overview").then((m) => ({ default: m.Overview })))
+const Sources = lazy(() => import("@/views/Sources").then((m) => ({ default: m.Sources })))
+const Indicators = lazy(() => import("@/views/Indicators").then((m) => ({ default: m.Indicators })))
+const Briefing = lazy(() => import("@/views/Briefing").then((m) => ({ default: m.Briefing })))
+const Benefits = lazy(() => import("@/views/Benefits").then((m) => ({ default: m.Benefits })))
 
 const VIEWS = {
   overview: { label: "Overview", Component: Overview },
@@ -51,13 +53,34 @@ function useHashView() {
   return view
 }
 
+function useOnline() {
+  const [online, setOnline] = useState(() => navigator.onLine)
+  useEffect(() => {
+    const on = () => setOnline(navigator.onLine)
+    window.addEventListener("online", on)
+    window.addEventListener("offline", on)
+    return () => {
+      window.removeEventListener("online", on)
+      window.removeEventListener("offline", on)
+    }
+  }, [])
+  return online
+}
+
 export default function App() {
   const view = useHashView()
   const { Component } = VIEWS[view]
+  const { tourSeen, setTourSeen } = useStore()
+  // First-time visitors get the tour automatically; afterwards it starts from the header.
+  const [tourStep, setTourStep] = useState<number | null>(tourSeen ? null : 0)
+  const closeTour = () => {
+    setTourStep(null)
+    setTourSeen()
+  }
 
   return (
     <div className="flex min-h-svh flex-col">
-      <Header view={view} />
+      <Header view={view} onTour={() => setTourStep(0)} />
       {/* <div className="border-b border-accent/30 bg-accent/10 text-sm print:hidden">
         <div className="mx-auto max-w-7xl px-4 py-2 sm:px-6">
           <strong className="text-warning">Demonstration build.</strong> All figures, agency statuses and dates are synthetic and
@@ -65,13 +88,13 @@ export default function App() {
         </div>
       </div> */}
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
-        <Component />
+        <Suspense fallback={<p className="text-muted-foreground">Loading…</p>}>
+          <Component />
+        </Suspense>
       </main>
-      <footer className="border-t bg-primary text-primary-foreground print:hidden">
+      <footer className="border-t bg-brand text-brand-foreground print:hidden">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-6 text-sm sm:px-6">
-          {/* White lettering on the dark-green light-mode footer, black lettering on the lighter dark-mode footer. */}
-          <img src={ministryWordmarkWhite} alt="Ministry of Agriculture" className="h-12 w-auto dark:hidden" />
-          <img src={ministryWordmark} alt="Ministry of Agriculture" className="hidden h-12 w-auto dark:block" />
+          <img src={ministryWordmarkWhite} alt="Ministry of Agriculture" className="h-12 w-auto" />
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="opacity-80">Prototype prepared by</span>
             <img src={izyaneLogo} alt="iZyane InovSolutions &amp; Payments" className="h-10 w-auto" />
@@ -80,18 +103,20 @@ export default function App() {
         </div>
         <div className="h-1.5 bg-accent" />
       </footer>
+      <Tour step={tourStep} onStep={setTourStep} onClose={closeTour} />
       <Toaster richColors position="bottom-right" />
     </div>
   )
 }
 
-function Header({ view }: { view: ViewId }) {
+function Header({ view, onTour }: { view: ViewId; onTour: () => void }) {
   const { role, prov, setRole, setProv, resetAll } = useStore()
   const scope = ROLES[role].scope
+  const online = useOnline()
 
   return (
     <header className="sticky top-0 z-20 print:hidden">
-      <div className="bg-primary text-primary-foreground">
+      <div className="bg-brand text-brand-foreground">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-6">
           <a href="#overview" className="flex items-center gap-3">
             <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-white p-1 ring-2 ring-accent">
@@ -103,8 +128,13 @@ function Header({ view }: { view: ViewId }) {
             </span>
           </a>
           <div className="ml-auto flex flex-wrap items-center gap-2 text-sm">
+            {!online && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-accent-foreground">
+                <WifiOff className="size-3.5" /> Offline, showing saved data
+              </span>
+            )}
             <label htmlFor="role" className="opacity-85">
-              Signed in as
+              Demo: view as
             </label>
             <Select
               value={role}
@@ -114,7 +144,7 @@ function Header({ view }: { view: ViewId }) {
                 if (ROLES[next].scope === "district") setProv("central")
               }}
             >
-              <SelectTrigger id="role" size="sm" className="bg-secondary text-secondary-foreground">
+              <SelectTrigger id="role" size="sm" className="bg-white text-neutral-900 dark:bg-white dark:text-neutral-900">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -127,7 +157,7 @@ function Header({ view }: { view: ViewId }) {
             </Select>
             {scope !== "national" && (
               <Select value={prov} onValueChange={setProv} disabled={scope === "district"}>
-                <SelectTrigger size="sm" aria-label="Province" className="bg-secondary text-secondary-foreground">
+                <SelectTrigger size="sm" aria-label="Province" className="bg-white text-neutral-900 dark:bg-white dark:text-neutral-900">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -139,10 +169,13 @@ function Header({ view }: { view: ViewId }) {
                 </SelectContent>
               </Select>
             )}
+            <Button size="sm" variant="ghost" className="text-brand-foreground hover:bg-white/15 hover:text-brand-foreground" onClick={onTour}>
+              <CircleHelp /> <span className="hidden sm:inline">Tour</span>
+            </Button>
             <ThemeToggle />
             <Dialog>
               <DialogTrigger asChild>
-                <Button size="icon-sm" variant="ghost" className="hover:bg-white/15 hover:text-primary-foreground" aria-label="Reset demo data">
+                <Button size="icon-sm" variant="ghost" className="text-brand-foreground hover:bg-white/15 hover:text-brand-foreground" aria-label="Reset demo data">
                   <RotateCcw />
                 </Button>
               </DialogTrigger>
@@ -198,7 +231,7 @@ function ThemeToggle() {
     <Button
       size="icon-sm"
       variant="ghost"
-      className="hover:bg-white/15 hover:text-primary-foreground"
+      className="text-brand-foreground hover:bg-white/15 hover:text-brand-foreground"
       aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
       onClick={() => setTheme(dark ? "light" : "dark")}
     >

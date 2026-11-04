@@ -4,29 +4,43 @@ import { fmtDateTime, fmtN } from "@/lib/format"
 
 // Everything the demo remembers lives in one localStorage entry.
 // Bump the version when the shape changes so stale saves are discarded.
-const STORAGE_KEY = "agid-demo:v1"
+const STORAGE_KEY = "agid-demo:v2"
 
 export type BriefStep = 0 | 1 | 2
-export type BriefEvent = { step: BriefStep; by: RoleId; at: string }
-export type BriefState = { step: BriefStep; history: BriefEvent[] }
+export type BriefEventKind = "checked" | "approved" | "returned" | "edited" | "restarted"
+export type BriefEvent = { kind: BriefEventKind; by: RoleId; at: string; comment?: string }
+export type BriefState = { step: BriefStep; history: BriefEvent[]; messages?: string[] }
+
+export type SyncOutcome = "accepted" | "nodata" | "skipped"
+export type SyncLine = { sourceId: string; outcome: SyncOutcome; text: string }
 export type SyncRun = { at: string; by: RoleId; lines: string[] }
+export type SyncPlan = { at: string; lines: SyncLine[]; sources: Source[] }
+
+export type Note = { by: RoleId; at: string; text: string }
+export type AlertState = { ack?: { by: RoleId; at: string }; assignee?: RoleId; notes: Note[] }
 
 type Persisted = {
   role: RoleId
   prov: string
   mapk: MapKey
+  mapView: "map" | "table"
   sources: Source[]
   syncRuns: SyncRun[]
   briefs: Record<string, BriefState>
+  alerts: Record<string, AlertState>
+  tourSeen: boolean
 }
 
 const DEFAULTS: Persisted = {
   role: "exec",
   prov: "central",
   mapk: "farmers",
+  mapView: "map",
   sources: SOURCES,
   syncRuns: [],
   briefs: {},
+  alerts: {},
+  tourSeen: false,
 }
 
 function load(): Persisted {
@@ -41,16 +55,26 @@ function load(): Persisted {
 
 export const briefKey = (aud: AudienceId, scope: string) => `${aud}:${scope}`
 const EMPTY_BRIEF: BriefState = { step: 0, history: [] }
+const EMPTY_ALERT: AlertState = { notes: [] }
 
 type Store = Persisted & {
   setRole: (r: RoleId) => void
   setProv: (p: string) => void
   setMapk: (k: MapKey) => void
+  setMapView: (v: "map" | "table") => void
   setDsa: (sourceId: string, dsa: DsaStatus) => void
-  runSync: () => SyncRun
+  planSync: () => SyncPlan
+  commitSync: (plan: SyncPlan) => void
   getBrief: (key: string) => BriefState
   advanceBrief: (key: string) => void
+  returnBrief: (key: string, comment: string) => void
+  editBrief: (key: string, messages: string[] | undefined) => void
   resetBrief: (key: string) => void
+  getAlert: (id: string) => AlertState
+  ackAlert: (id: string, ack: boolean) => void
+  assignAlert: (id: string, assignee: RoleId | undefined) => void
+  noteAlert: (id: string, text: string) => void
+  setTourSeen: () => void
   resetAll: () => void
 }
 
@@ -69,61 +93,96 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const patch = useCallback((p: Partial<Persisted>) => setState((s) => ({ ...s, ...p })), [])
 
-  const store = useMemo<Store>(
-    () => ({
+  const store = useMemo<Store>(() => {
+    const stamp = () => fmtDateTime(new Date())
+    const updateBrief = (key: string, fn: (b: BriefState) => BriefState) =>
+      setState((s) => ({ ...s, briefs: { ...s.briefs, [key]: fn(s.briefs[key] ?? EMPTY_BRIEF) } }))
+    const updateAlert = (id: string, fn: (a: AlertState) => AlertState) =>
+      setState((s) => ({ ...s, alerts: { ...s.alerts, [id]: fn(s.alerts[id] ?? EMPTY_ALERT) } }))
+
+    return {
       ...state,
       setRole: (role) => patch({ role }),
       setProv: (prov) => patch({ prov }),
       setMapk: (mapk) => patch({ mapk }),
+      setMapView: (mapView) => patch({ mapView }),
       setDsa: (id, dsa) =>
         setState((s) => ({ ...s, sources: s.sources.map((src) => (src.id === id ? { ...src, dsa } : src)) })),
-      runSync: () => {
-        const at = fmtDateTime(new Date())
-        const lines: string[] = []
+
+      // Works out what a sync would do without changing anything, so the UI can play it back step by step.
+      planSync: () => {
+        const at = stamp()
+        const lines: SyncLine[] = []
         const sources = state.sources.map((src) => {
           if (!src.run) {
-            lines.push(
+            const text =
               src.dsa === "ok"
                 ? `${src.agency}: agreement signed, connector not yet built.`
-                : `${src.agency}: skipped until the data-sharing agreement is signed.`,
-            )
+                : `${src.agency}: skipped until the data-sharing agreement is signed.`
+            lines.push({ sourceId: src.id, outcome: "skipped", text })
             return src
           }
           const [read, accepted, msg] = src.run
-          lines.push(`${src.agency}: ${fmtN(read)} records read, ${fmtN(accepted)} accepted. ${msg}`)
+          lines.push({
+            sourceId: src.id,
+            outcome: read > 0 ? "accepted" : "nodata",
+            text: `${src.agency}: ${fmtN(read)} records read, ${fmtN(accepted)} accepted. ${msg}`,
+          })
           // Sources that delivered new records get a fresh timestamp; empty runs stay stale.
           return read > 0 ? { ...src, upd: at, stale: false } : src
         })
-        const run: SyncRun = { at, by: state.role, lines }
-        setState((s) => ({ ...s, sources, syncRuns: [run, ...s.syncRuns].slice(0, 20) }))
-        return run
+        return { at, lines, sources }
       },
+      commitSync: (plan) =>
+        setState((s) => ({
+          ...s,
+          sources: plan.sources,
+          syncRuns: [{ at: plan.at, by: s.role, lines: plan.lines.map((l) => l.text) }, ...s.syncRuns].slice(0, 20),
+        })),
+
       getBrief: (key) => state.briefs[key] ?? EMPTY_BRIEF,
       advanceBrief: (key) =>
-        setState((s) => {
-          const cur = s.briefs[key] ?? EMPTY_BRIEF
-          if (cur.step >= 2) return s
-          const step = (cur.step + 1) as BriefStep
-          const ev: BriefEvent = { step, by: s.role, at: fmtDateTime(new Date()) }
-          return { ...s, briefs: { ...s.briefs, [key]: { step, history: [...cur.history, ev] } } }
-        }),
+        updateBrief(key, (b) =>
+          b.step >= 2
+            ? b
+            : {
+                ...b,
+                step: (b.step + 1) as BriefStep,
+                history: [...b.history, { kind: b.step === 0 ? "checked" : "approved", by: state.role, at: stamp() }],
+              },
+        ),
+      returnBrief: (key, comment) =>
+        updateBrief(key, (b) => ({
+          ...b,
+          step: 0,
+          history: [...b.history, { kind: "returned", by: state.role, at: stamp(), comment }],
+        })),
+      editBrief: (key, messages) =>
+        updateBrief(key, (b) => ({
+          ...b,
+          messages,
+          history: [...b.history, { kind: "edited", by: state.role, at: stamp(), comment: messages ? undefined : "Reset to generated text" }],
+        })),
       resetBrief: (key) =>
-        setState((s) => {
-          const briefs = { ...s.briefs }
-          delete briefs[key]
-          return { ...s, briefs }
-        }),
+        updateBrief(key, (b) => ({ step: 0, history: [...b.history, { kind: "restarted", by: state.role, at: stamp() }] })),
+
+      getAlert: (id) => state.alerts[id] ?? EMPTY_ALERT,
+      ackAlert: (id, ack) => updateAlert(id, (a) => ({ ...a, ack: ack ? { by: state.role, at: stamp() } : undefined })),
+      assignAlert: (id, assignee) => updateAlert(id, (a) => ({ ...a, assignee })),
+      noteAlert: (id, text) => updateAlert(id, (a) => ({ ...a, notes: [...a.notes, { by: state.role, at: stamp(), text }] })),
+
+      setTourSeen: () => patch({ tourSeen: true }),
       resetAll: () => {
         try {
           localStorage.removeItem(STORAGE_KEY)
         } catch {
           // ignore
         }
-        setState(DEFAULTS)
+        // Keep the tour from popping up again straight after a reset.
+        setState({ ...DEFAULTS, tourSeen: true })
       },
-    }),
-    [state, patch],
-  )
+    }
+  }, [state, patch])
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>
 }

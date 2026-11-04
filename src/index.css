@@ -25,6 +25,8 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    --color-brand: var(--brand);
+    --color-brand-foreground: var(--brand-foreground);
     --color-warning: var(--warning);
     --color-warning-foreground: var(--warning-foreground);
     --color-scale-1: var(--scale-1);
@@ -71,8 +73,12 @@
     --muted-foreground: oklch(0.5 0.025 150);
     --accent: oklch(0.72 0.17 55);
     --accent-foreground: oklch(0.2 0.04 50);
-    --warning: oklch(0.68 0.17 50);
+    /* Darker than the accent so orange text meets WCAG AA contrast on light backgrounds. */
+    --warning: oklch(0.5 0.15 45);
     --warning-foreground: oklch(0.99 0 0);
+    /* Header and footer stay deep green in both modes so the white logos always read. */
+    --brand: oklch(0.42 0.11 148);
+    --brand-foreground: oklch(0.99 0 0);
     --destructive: oklch(0.56 0.21 27);
     --border: oklch(0.91 0.015 145);
     --input: oklch(0.89 0.018 145);
@@ -113,8 +119,10 @@
     --muted-foreground: oklch(0.72 0.03 150);
     --accent: oklch(0.76 0.16 58);
     --accent-foreground: oklch(0.18 0.04 50);
-    --warning: oklch(0.76 0.16 58);
+    --warning: oklch(0.78 0.15 58);
     --warning-foreground: oklch(0.18 0.04 50);
+    --brand: oklch(0.32 0.08 150);
+    --brand-foreground: oklch(0.99 0 0);
     --destructive: oklch(0.7 0.19 22);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
