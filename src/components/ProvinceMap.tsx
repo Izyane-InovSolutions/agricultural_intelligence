@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react"
 import { Map as MapIcon, Table2 } from "lucide-react"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -6,7 +7,7 @@ import { PROVINCES, ROLES, type MapKey, type Province } from "@/data/demo"
 import { MAP_VIEWBOX, PROVINCE_SHAPES } from "@/data/zambia-map"
 import { fmtK } from "@/lib/format"
 import { kpiById } from "@/lib/kpis"
-import { aggregate } from "@/lib/scope"
+import { aggregate, provById } from "@/lib/scope"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
@@ -71,73 +72,7 @@ export function ProvinceMap({ selected, onSelect }: { selected: string | null; o
 
         {mapView === "map" ? (
           <>
-            <svg viewBox={MAP_VIEWBOX} className="mx-auto w-full max-w-xl" role="group" aria-label="Map of Zambia's ten provinces">
-              {PROVINCES.map((p) => {
-                const shape = PROVINCE_SHAPES[p.id]
-                const inScope = national || p.id === prov
-                const pick = () => inScope && onSelect(p.id)
-                return (
-                  <path
-                    key={p.id}
-                    d={shape.d}
-                    role="button"
-                    tabIndex={inScope ? 0 : -1}
-                    aria-label={`${p.name}: ${SHORT_LABEL[mapk]} ${fmtTile(mapk, p[mapk])}${below(mapk, p) ? ", below alert threshold" : ""}`}
-                    aria-pressed={selected === p.id}
-                    fill={`var(${SCALE[scaleIndex(mapk, p[mapk])]})`}
-                    stroke="var(--card)"
-                    strokeWidth={1.5}
-                    strokeLinejoin="round"
-                    className={cn(
-                      "cursor-pointer outline-none transition-opacity hover:opacity-80 focus-visible:opacity-80",
-                      !inScope && "cursor-default opacity-25",
-                    )}
-                    onClick={pick}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        pick()
-                      }
-                    }}
-                  />
-                )
-              })}
-              {/* Selection outline is drawn on top so neighbouring provinces never cover it. */}
-              {selected && (
-                <path d={PROVINCE_SHAPES[selected].d} fill="none" stroke="var(--accent)" strokeWidth={4} strokeLinejoin="round" pointerEvents="none" />
-              )}
-              {PROVINCES.map((p) => {
-                const [dx, dy] = LABEL_NUDGE[p.id] ?? [0, 0]
-                const cx = PROVINCE_SHAPES[p.id].cx + dx
-                const cy = PROVINCE_SHAPES[p.id].cy + dy
-                const inScope = national || p.id === prov
-                const dark = scaleIndex(mapk, p[mapk]) >= 3
-                return (
-                  <g key={p.id} pointerEvents="none" className={cn(!inScope && "opacity-40")} aria-hidden>
-                    <text
-                      x={cx}
-                      y={cy - 4}
-                      textAnchor="middle"
-                      fontSize={11}
-                      fill={dark ? "var(--primary-foreground)" : "var(--foreground)"}
-                    >
-                      {p.short}
-                    </text>
-                    <text
-                      x={cx}
-                      y={cy + 12}
-                      textAnchor="middle"
-                      fontSize={15}
-                      fontWeight={700}
-                      fill={dark ? "var(--primary-foreground)" : "var(--foreground)"}
-                    >
-                      {fmtTile(mapk, p[mapk])}
-                    </text>
-                    {below(mapk, p) && <circle cx={cx + 30} cy={cy - 8} r={5.5} fill="var(--warning)" stroke="var(--card)" strokeWidth={1.5} />}
-                  </g>
-                )
-              })}
-            </svg>
+            <Map3D selected={selected} onSelect={onSelect} national={national} prov={prov} mapk={mapk} />
             <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
               Lower
               {SCALE.map((s) => (
@@ -193,5 +128,150 @@ export function ProvinceMap({ selected, onSelect }: { selected: string | null; o
         </p>
       </CardContent>
     </Card>
+  )
+}
+
+// Height of each province's side wall, in map units.
+const DEPTH = 7
+const [VB_X, VB_Y, VB_W, VB_H] = MAP_VIEWBOX.split(" ").map(Number)
+// Extra room above for lifted provinces and below for the walls.
+const VIEWBOX_3D = `${VB_X} ${VB_Y - 14} ${VB_W} ${VB_H + 14 + DEPTH + 4}`
+
+type MapProps = { selected: string | null; onSelect: (id: string) => void; national: boolean; prov: string; mapk: MapKey }
+
+function Map3D({ selected, onSelect, national, prov, mapk }: MapProps) {
+  const [hover, setHover] = useState<string | null>(null)
+  const [landing, setLanding] = useState<string | null>(null)
+  const timer = useRef<number>(undefined)
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+
+  const inScope = (id: string) => national || id === prov
+  const point = (id: string | null) => {
+    if (id === hover) return
+    // Let the previous province settle back down before it disappears from the top layer.
+    if (hover && hover !== selected) {
+      setLanding(hover)
+      window.clearTimeout(timer.current)
+      timer.current = window.setTimeout(() => setLanding(null), 170)
+    }
+    setHover(id && inScope(id) ? id : null)
+  }
+  // Hit-testing goes through data-prov so the lifted copy and the base shape count as one province.
+  const provAt = (t: EventTarget) => (t as Element).closest?.("[data-prov]")?.getAttribute("data-prov") ?? null
+
+  const lifted = [...new Set([selected, hover].filter((x): x is string => !!x))]
+  const raised = new Set([...lifted, landing])
+  const fill = (p: Province) => `var(${SCALE[scaleIndex(mapk, p[mapk])]})`
+  const wall = (p: Province) => `color-mix(in oklch, ${fill(p)}, black 30%)`
+  const walls = (p: Province) =>
+    Array.from({ length: DEPTH }, (_, i) => (
+      <path key={i} d={PROVINCE_SHAPES[p.id].d} transform={`translate(0 ${DEPTH - i})`} style={{ fill: wall(p) }} />
+    ))
+
+  return (
+    <div className="mx-auto w-full max-w-xl [perspective:1600px]">
+      <svg
+        viewBox={VIEWBOX_3D}
+        className="w-full origin-bottom [transform:rotateX(22deg)]"
+        role="group"
+        aria-label="Map of Zambia's ten provinces"
+        onPointerMove={(e) => point(provAt(e.target))}
+        onPointerLeave={() => point(null)}
+        onClick={(e) => {
+          // The lifted copy can appear between press and release, which sends the click to the svg itself.
+          const id = provAt(e.target) ?? hover
+          if (id && inScope(id)) onSelect(id)
+        }}
+      >
+        <defs>
+          <filter id="map-shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="6" />
+          </filter>
+        </defs>
+
+        {/* Walls first, then every top face, so no wall covers a neighbour's top. */}
+        {PROVINCES.map((p) => (
+          <g key={p.id} data-prov={p.id} className={cn(!inScope(p.id) && "opacity-25")}>
+            {walls(p)}
+          </g>
+        ))}
+        {PROVINCES.map((p) => (
+          <path
+            key={p.id}
+            data-prov={p.id}
+            d={PROVINCE_SHAPES[p.id].d}
+            role="button"
+            tabIndex={inScope(p.id) ? 0 : -1}
+            aria-label={`${p.name}: ${SHORT_LABEL[mapk]} ${fmtTile(mapk, p[mapk])}${below(mapk, p) ? ", below alert threshold" : ""}`}
+            aria-pressed={selected === p.id}
+            fill={fill(p)}
+            stroke="var(--card)"
+            strokeWidth={1.25}
+            strokeLinejoin="round"
+            className={cn("cursor-pointer outline-none", !inScope(p.id) && "cursor-default opacity-25")}
+            onFocus={() => point(p.id)}
+            onBlur={() => point(null)}
+            onKeyDown={(e) => {
+              if ((e.key === "Enter" || e.key === " ") && inScope(p.id)) {
+                e.preventDefault()
+                onSelect(p.id)
+              }
+            }}
+          />
+        ))}
+        {PROVINCES.filter((p) => !raised.has(p.id)).map((p) => (
+          <ProvinceLabel key={p.id} p={p} mapk={mapk} dim={!inScope(p.id)} />
+        ))}
+
+        {/* Raised provinces are drawn again on top, lifted, with a shadow left on the board. */}
+        {[...(landing && !lifted.includes(landing) ? [landing] : []), ...lifted].map((id) => {
+          const p = provById(id)
+          const up = lifted.includes(id)
+          return (
+            <g key={id} data-prov={id} className="cursor-pointer" aria-hidden>
+              {up && (
+                <path
+                  d={PROVINCE_SHAPES[id].d}
+                  transform={`translate(0 ${DEPTH + 2})`}
+                  fill="black"
+                  opacity={0.35}
+                  filter="url(#map-shadow)"
+                  className="map-shadow"
+                />
+              )}
+              <g className={up ? "map-lift" : "map-drop"}>
+                {walls(p)}
+                <path
+                  d={PROVINCE_SHAPES[id].d}
+                  fill={fill(p)}
+                  stroke={id === selected ? "var(--accent)" : "var(--card)"}
+                  strokeWidth={id === selected ? 3.5 : 1.25}
+                  strokeLinejoin="round"
+                />
+                <ProvinceLabel p={p} mapk={mapk} />
+              </g>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
+  )
+}
+
+function ProvinceLabel({ p, mapk, dim }: { p: Province; mapk: MapKey; dim?: boolean }) {
+  const [dx, dy] = LABEL_NUDGE[p.id] ?? [0, 0]
+  const cx = PROVINCE_SHAPES[p.id].cx + dx
+  const cy = PROVINCE_SHAPES[p.id].cy + dy
+  const color = scaleIndex(mapk, p[mapk]) >= 3 ? "var(--primary-foreground)" : "var(--foreground)"
+  return (
+    <g pointerEvents="none" className={cn(dim && "opacity-40")} aria-hidden>
+      <text x={cx} y={cy - 4} textAnchor="middle" fontSize={11} fill={color}>
+        {p.short}
+      </text>
+      <text x={cx} y={cy + 12} textAnchor="middle" fontSize={15} fontWeight={700} fill={color}>
+        {fmtTile(mapk, p[mapk])}
+      </text>
+      {below(mapk, p) && <circle cx={cx + 30} cy={cy - 8} r={5.5} fill="var(--warning)" stroke="var(--card)" strokeWidth={1.5} />}
+    </g>
   )
 }

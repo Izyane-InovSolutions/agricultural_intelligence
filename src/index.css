@@ -161,3 +161,22 @@
 @media print {
   body { background: #fff; }
 }
+
+/* Province map: hovered or selected provinces rise off the board. */
+@keyframes map-lift {
+  from { transform: translateY(0); }
+  to { transform: translateY(-10px); }
+}
+@keyframes map-drop {
+  from { transform: translateY(-10px); }
+  to { transform: translateY(0); }
+}
+@keyframes map-shadow {
+  from { opacity: 0; }
+}
+.map-lift { transform: translateY(-10px); animation: map-lift 180ms ease-out; }
+.map-drop { animation: map-drop 160ms ease-in forwards; }
+.map-shadow { animation: map-shadow 180ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .map-lift, .map-drop, .map-shadow { animation: none; }
+}
