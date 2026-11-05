@@ -45,9 +45,12 @@ export function Overview() {
             <Card
               key={k.id}
               size="sm"
+              // The whole card opens the figure; the inner button keeps it reachable by keyboard.
+              onClick={locked ? undefined : () => setOpenKpi(k.id)}
               className={cn(
-                "gap-2 border-t-4 border-t-primary transition-shadow",
-                !locked && "cursor-pointer hover:shadow-md focus-within:ring-2 focus-within:ring-ring",
+                "gap-2 border-t-4 border-t-primary transition-[transform,box-shadow] duration-200 ease-out",
+                !locked &&
+                  "cursor-pointer hover:-translate-y-1 hover:shadow-lg focus-within:ring-2 focus-within:ring-ring motion-reduce:hover:translate-y-0",
               )}
             >
               <CardContent className="flex h-full flex-col gap-1">
@@ -59,7 +62,7 @@ export function Overview() {
                     </div>
                   </>
                 ) : (
-                  <button type="button" onClick={() => setOpenKpi(k.id)} className="flex flex-col gap-1 text-left outline-none">
+                  <button type="button" onClick={() => setOpenKpi(k.id)} className="flex cursor-pointer flex-col gap-1 text-left outline-none">
                     <span className="flex items-center justify-between gap-1 text-sm font-semibold">
                       {k.label}
                       <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
@@ -139,7 +142,8 @@ function ProvinceDetail({ id }: { id: string | null }) {
   const nat = aggregate(PROVINCES)
   const rows = KPIS.filter((k) => k.province)
   return (
-    <Card>
+    // Orange top edge matches the selected province's outline on the map.
+    <Card key={id} className="border-t-4 border-t-accent motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2">
       <CardHeader>
         <CardTitle className="text-xl">{p.name} Province</CardTitle>
         <CardDescription>Compared with the national picture.</CardDescription>
