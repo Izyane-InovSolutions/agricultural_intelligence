@@ -36,7 +36,7 @@ const STEPS: Step[] = [
     view: "overview",
     role: "prov",
     title: "Each role sees its own area",
-    body: "A Provincial Agriculture Coordinator only sees their province, and budget figures are hidden. Use “Demo: view as” to switch roles at any time.",
+    body: "A Provincial Agriculture Coordinator only sees their province, and budget figures are hidden. When the tour ends you return to your own account’s view.",
   },
 ]
 

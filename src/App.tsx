@@ -20,14 +20,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Toaster } from "@/components/ui/sonner"
 import ministryLogo from "@/assets/Ministry-of-agriculture-icon.png"
 import { SiteFooter } from "@/components/SiteFooter"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { Tour } from "@/components/Tour"
 import { accountById } from "@/data/accounts"
-import { PROVINCES, ROLES, type RoleId } from "@/data/demo"
+import { ROLES } from "@/data/demo"
 import { Landing } from "@/views/Landing"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -126,8 +125,7 @@ function Dashboard() {
 }
 
 function Header({ view, onTour }: { view: ViewId; onTour: () => void }) {
-  const { role, prov, setRole, setProv, resetAll } = useStore()
-  const scope = ROLES[role].scope
+  const { resetAll } = useStore()
   const online = useOnline()
 
   return (
@@ -148,42 +146,6 @@ function Header({ view, onTour }: { view: ViewId; onTour: () => void }) {
               <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-accent-foreground">
                 <WifiOff className="size-3.5" /> Offline, showing saved data
               </span>
-            )}
-            {/* <label htmlFor="role" className="opacity-85">
-              Demo: view as
-            </label>
-            <Select
-              value={role}
-              onValueChange={(v) => {
-                const next = v as RoleId
-                setRole(next)
-                if (ROLES[next].scope === "district") setProv("central")
-              }}
-            >
-              <SelectTrigger id="role" size="sm" className="bg-white text-neutral-900 dark:bg-white dark:text-neutral-900">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(ROLES) as RoleId[]).map((k) => (
-                  <SelectItem key={k} value={k}>
-                    {ROLES[k].label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select> */}
-            {scope !== "national" && (
-              <Select value={prov} onValueChange={setProv} disabled={scope === "district"}>
-                <SelectTrigger size="sm" aria-label="Province" className="bg-white text-neutral-900 dark:bg-white dark:text-neutral-900">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PROVINCES.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             )}
             <Button size="sm" variant="ghost" className="text-brand-foreground hover:bg-white/15 hover:text-brand-foreground" onClick={onTour}>
               <CircleHelp /> <span className="hidden sm:inline">Tour</span>
