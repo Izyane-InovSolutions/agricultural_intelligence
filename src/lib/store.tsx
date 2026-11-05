@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 import { SOURCES, type AudienceId, type DsaStatus, type MapKey, type RoleId, type Source } from "@/data/demo"
+import { accountById, type Account } from "@/data/accounts"
 import { fmtDateTime, fmtN } from "@/lib/format"
 
 // Everything the demo remembers lives in one localStorage entry.
@@ -17,6 +18,7 @@ export type SyncRun = { at: string; by: RoleId; lines: string[] }
 export type SyncPlan = { at: string; lines: SyncLine[]; sources: Source[] }
 
 export type Note = { by: RoleId; at: string; text: string }
+export type Session = { accountId: string; at: string }
 export type AlertState = { ack?: { by: RoleId; at: string }; assignee?: RoleId; notes: Note[] }
 
 type Persisted = {
@@ -29,6 +31,7 @@ type Persisted = {
   briefs: Record<string, BriefState>
   alerts: Record<string, AlertState>
   tourSeen: boolean
+  session: Session | null
 }
 
 const DEFAULTS: Persisted = {
@@ -41,6 +44,7 @@ const DEFAULTS: Persisted = {
   briefs: {},
   alerts: {},
   tourSeen: false,
+  session: null,
 }
 
 function load(): Persisted {
@@ -75,6 +79,8 @@ type Store = Persisted & {
   assignAlert: (id: string, assignee: RoleId | undefined) => void
   noteAlert: (id: string, text: string) => void
   setTourSeen: () => void
+  signIn: (a: Account) => void
+  signOut: () => void
   resetAll: () => void
 }
 
@@ -172,14 +178,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       noteAlert: (id, text) => updateAlert(id, (a) => ({ ...a, notes: [...a.notes, { by: state.role, at: stamp(), text }] })),
 
       setTourSeen: () => patch({ tourSeen: true }),
+      signIn: (a) => patch({ session: { accountId: a.id, at: stamp() }, role: a.role, prov: a.prov }),
+      signOut: () => patch({ session: null }),
       resetAll: () => {
         try {
           localStorage.removeItem(STORAGE_KEY)
         } catch {
           // ignore
         }
-        // Keep the tour from popping up again straight after a reset.
-        setState({ ...DEFAULTS, tourSeen: true })
+        // Keep the tour from popping up again straight after a reset, and keep the user signed in.
+        setState((s) => {
+          const a = s.session && accountById(s.session.accountId)
+          return { ...DEFAULTS, tourSeen: true, session: s.session, ...(a && { role: a.role, prov: a.prov }) }
+        })
       },
     }
   }, [state, patch])

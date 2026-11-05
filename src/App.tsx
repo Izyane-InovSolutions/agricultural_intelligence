@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react"
-import { CircleHelp, Moon, RotateCcw, Sun, WifiOff } from "lucide-react"
-import { useTheme } from "next-themes"
+import { CircleHelp, LogOut, RotateCcw, WifiOff } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -12,13 +12,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Toaster } from "@/components/ui/sonner"
 import ministryLogo from "@/assets/Ministry-of-agriculture-icon.png"
-import ministryWordmarkWhite from "@/assets/Ministry-of-agriculture-w.png"
-import izyaneLogo from "@/assets/iZyane-white.png"
+import { SiteFooter } from "@/components/SiteFooter"
+import { ThemeToggle } from "@/components/ThemeToggle"
 import { Tour } from "@/components/Tour"
+import { accountById } from "@/data/accounts"
 import { PROVINCES, ROLES, type RoleId } from "@/data/demo"
+import { Landing } from "@/views/Landing"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
@@ -68,14 +78,31 @@ function useOnline() {
 }
 
 export default function App() {
+  const { session } = useStore()
+  const signedIn = !!(session && accountById(session.accountId))
+  return (
+    <>
+      {signedIn ? <Dashboard /> : <Landing />}
+      <Toaster richColors position="bottom-right" />
+    </>
+  )
+}
+
+function Dashboard() {
   const view = useHashView()
   const { Component } = VIEWS[view]
-  const { tourSeen, setTourSeen } = useStore()
+  const { tourSeen, setTourSeen, session, setRole, setProv } = useStore()
   // First-time visitors get the tour automatically; afterwards it starts from the header.
   const [tourStep, setTourStep] = useState<number | null>(tourSeen ? null : 0)
   const closeTour = () => {
     setTourStep(null)
     setTourSeen()
+    // The tour switches roles as it goes; hand the user back their own view at the end.
+    const a = session && accountById(session.accountId)
+    if (a) {
+      setRole(a.role)
+      setProv(a.prov)
+    }
   }
 
   return (
@@ -92,19 +119,8 @@ export default function App() {
           <Component />
         </Suspense>
       </main>
-      <footer className="border-t bg-brand text-brand-foreground print:hidden">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-6 text-sm sm:px-6">
-          <img src={ministryWordmarkWhite} alt="Ministry of Agriculture" className="h-12 w-auto" />
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="opacity-80">Prototype prepared by</span>
-            <img src={izyaneLogo} alt="iZyane InovSolutions &amp; Payments" className="h-10 w-auto" />
-            <span className="opacity-80">for UNDP Zambia RFP UNDP-ZMB-00619 (AA4DPI). Synthetic data only.</span>
-          </span>
-        </div>
-        <div className="h-1.5 bg-accent" />
-      </footer>
+      <SiteFooter />
       <Tour step={tourStep} onStep={setTourStep} onClose={closeTour} />
-      <Toaster richColors position="bottom-right" />
     </div>
   )
 }
@@ -198,6 +214,7 @@ function Header({ view, onTour }: { view: ViewId; onTour: () => void }) {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            <AccountMenu />
           </div>
         </div>
       </div>
@@ -224,18 +241,45 @@ function Header({ view, onTour }: { view: ViewId; onTour: () => void }) {
   )
 }
 
-function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme()
-  const dark = resolvedTheme === "dark"
+function AccountMenu() {
+  const { session, signOut } = useStore()
+  const a = session && accountById(session.accountId)
+  if (!a) return null
+  const initials = a.name
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
   return (
-    <Button
-      size="icon-sm"
-      variant="ghost"
-      className="text-brand-foreground hover:bg-white/15 hover:text-brand-foreground"
-      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-      onClick={() => setTheme(dark ? "light" : "dark")}
-    >
-      {dark ? <Sun /> : <Moon />}
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Account: ${a.name}`}
+          className="flex size-8 cursor-pointer items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground ring-2 ring-white/70 transition-shadow outline-none hover:ring-white focus-visible:ring-white"
+        >
+          {initials}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel className="font-normal">
+          <div className="font-semibold">{a.name}</div>
+          <div className="text-xs text-muted-foreground">{a.email}</div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {ROLES[a.role].label} · {a.place}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">Signed in {session.at}</div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={() => {
+            signOut()
+            toast("Signed out")
+          }}
+        >
+          <LogOut /> Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
