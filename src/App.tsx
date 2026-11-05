@@ -149,7 +149,7 @@ function Header({ view, onTour }: { view: ViewId; onTour: () => void }) {
                 <WifiOff className="size-3.5" /> Offline, showing saved data
               </span>
             )}
-            <label htmlFor="role" className="opacity-85">
+            {/* <label htmlFor="role" className="opacity-85">
               Demo: view as
             </label>
             <Select
@@ -170,7 +170,7 @@ function Header({ view, onTour }: { view: ViewId; onTour: () => void }) {
                   </SelectItem>
                 ))}
               </SelectContent>
-            </Select>
+            </Select> */}
             {scope !== "national" && (
               <Select value={prov} onValueChange={setProv} disabled={scope === "district"}>
                 <SelectTrigger size="sm" aria-label="Province" className="bg-white text-neutral-900 dark:bg-white dark:text-neutral-900">
