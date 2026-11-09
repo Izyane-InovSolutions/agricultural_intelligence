@@ -1,4 +1,4 @@
-import { BUDGET_RELEASED, type Province } from "@/data/demo"
+import { BUDGET_RELEASED, type Area } from "@/data/demo"
 import type { KpiId } from "@/data/trends"
 import { fmtK, fmtN } from "@/lib/format"
 import type { Totals } from "@/lib/scope"
@@ -14,7 +14,7 @@ export type Kpi = {
   short: (v: number) => string
   full: (v: number) => string
   value: (t: Totals) => number
-  province?: (p: Province) => number
+  province?: (p: Area) => number
   // Which direction is good news, for colouring changes.
   higherIsBetter: boolean
   // Counts add up across provinces; rates and prices are averaged.

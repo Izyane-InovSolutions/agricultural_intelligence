@@ -30,6 +30,7 @@ import { accountById } from "@/data/accounts"
 import { PROVINCES, ROLES, type RoleId } from "@/data/demo"
 import { Landing } from "@/views/Landing"
 import { useStore } from "@/lib/store"
+import { districtIn, districtsOf } from "@/lib/scope"
 import { cn } from "@/lib/utils"
 
 // Each page is its own download, so the first visit only fetches the page being opened.
@@ -91,7 +92,7 @@ export default function App() {
 function Dashboard() {
   const view = useHashView()
   const { Component } = VIEWS[view]
-  const { tourSeen, setTourSeen, session, setRole, setProv } = useStore()
+  const { tourSeen, setTourSeen, session, setRole, setProv, setDist } = useStore()
   // First-time visitors get the tour automatically; afterwards it starts from the header.
   const [tourStep, setTourStep] = useState<number | null>(tourSeen ? null : 0)
   const closeTour = () => {
@@ -102,6 +103,7 @@ function Dashboard() {
     if (a) {
       setRole(a.role)
       setProv(a.prov)
+      if (a.dist) setDist(a.dist)
     }
   }
 
@@ -126,7 +128,7 @@ function Dashboard() {
 }
 
 function Header({ view, onTour }: { view: ViewId; onTour: () => void }) {
-  const { role, prov, setRole, setProv, resetAll } = useStore()
+  const { role, prov, dist, setRole, setProv, setDist, resetAll } = useStore()
   const scope = ROLES[role].scope
   const online = useOnline()
 
@@ -172,7 +174,13 @@ function Header({ view, onTour }: { view: ViewId; onTour: () => void }) {
               </SelectContent>
             </Select> */}
             {scope !== "national" && (
-              <Select value={prov} onValueChange={setProv} disabled={scope === "district"}>
+              <Select
+                value={prov}
+                onValueChange={(v) => {
+                  setProv(v)
+                  if (scope === "district") setDist(districtIn(v, dist).id)
+                }}
+              >
                 <SelectTrigger size="sm" aria-label="Province" className="bg-white text-neutral-900 dark:bg-white dark:text-neutral-900">
                   <SelectValue />
                 </SelectTrigger>
@@ -180,6 +188,20 @@ function Header({ view, onTour }: { view: ViewId; onTour: () => void }) {
                   {PROVINCES.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {scope === "district" && (
+              <Select value={districtIn(prov, dist).id} onValueChange={setDist}>
+                <SelectTrigger size="sm" aria-label="District" className="bg-white text-neutral-900 dark:bg-white dark:text-neutral-900">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {districtsOf(prov).map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
