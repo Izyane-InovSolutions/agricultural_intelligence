@@ -128,7 +128,7 @@ function Dashboard() {
 }
 
 function Header({ view, onTour }: { view: ViewId; onTour: () => void }) {
-  const { role, prov, dist, setRole, setProv, setDist, resetAll } = useStore()
+  const { role, prov, dist, setProv, setDist, resetAll } = useStore()
   const scope = ROLES[role].scope
   const online = useOnline()
 
