@@ -2,6 +2,7 @@ export const fmtN = (n: number) => n.toLocaleString("en-GB")
 
 export function fmtK(n: number) {
   if (n < 1000) return String(n)
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M"
   return (n / 1000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, "") + "k"
 }
 
