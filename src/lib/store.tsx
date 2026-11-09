@@ -24,6 +24,8 @@ export type AlertState = { ack?: { by: RoleId; at: string }; assignee?: RoleId; 
 type Persisted = {
   role: RoleId
   prov: string
+  // The district a District Agriculture Coordinator is looking after.
+  dist: string
   mapk: MapKey
   mapView: "map" | "table"
   sources: Source[]
@@ -37,6 +39,7 @@ type Persisted = {
 const DEFAULTS: Persisted = {
   role: "exec",
   prov: "central",
+  dist: "chibombo",
   mapk: "farmers",
   mapView: "map",
   sources: SOURCES,
@@ -64,6 +67,7 @@ const EMPTY_ALERT: AlertState = { notes: [] }
 type Store = Persisted & {
   setRole: (r: RoleId) => void
   setProv: (p: string) => void
+  setDist: (d: string) => void
   setMapk: (k: MapKey) => void
   setMapView: (v: "map" | "table") => void
   setDsa: (sourceId: string, dsa: DsaStatus) => void
@@ -110,6 +114,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...state,
       setRole: (role) => patch({ role }),
       setProv: (prov) => patch({ prov }),
+      setDist: (dist) => patch({ dist }),
       setMapk: (mapk) => patch({ mapk }),
       setMapView: (mapView) => patch({ mapView }),
       setDsa: (id, dsa) =>
@@ -178,7 +183,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       noteAlert: (id, text) => updateAlert(id, (a) => ({ ...a, notes: [...a.notes, { by: state.role, at: stamp(), text }] })),
 
       setTourSeen: () => patch({ tourSeen: true }),
-      signIn: (a) => patch({ session: { accountId: a.id, at: stamp() }, role: a.role, prov: a.prov }),
+      signIn: (a) => patch({ session: { accountId: a.id, at: stamp() }, role: a.role, prov: a.prov, dist: a.dist ?? DEFAULTS.dist }),
       signOut: () => patch({ session: null }),
       resetAll: () => {
         try {
@@ -189,7 +194,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Keep the tour from popping up again straight after a reset, and keep the user signed in.
         setState((s) => {
           const a = s.session && accountById(s.session.accountId)
-          return { ...DEFAULTS, tourSeen: true, session: s.session, ...(a && { role: a.role, prov: a.prov }) }
+          return { ...DEFAULTS, tourSeen: true, session: s.session, ...(a && { role: a.role, prov: a.prov, dist: a.dist ?? DEFAULTS.dist }) }
         })
       },
     }

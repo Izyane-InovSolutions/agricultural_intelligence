@@ -2,13 +2,13 @@ import { lazy, Suspense, useState } from "react"
 import { ChevronRight, Lock } from "lucide-react"
 import { AlertsPanel } from "@/components/AlertsPanel"
 import { Change } from "@/components/Change"
-import { ProvinceMap } from "@/components/ProvinceMap"
+import { ProvinceMap, rankIn, type Figure } from "@/components/ProvinceMap"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { PROVINCES, ROLES } from "@/data/demo"
 import { lastSeasonValue, trend, type KpiId } from "@/data/trends"
 import { KPIS } from "@/lib/kpis"
-import { aggregate, provById, scopeLabel, scopeTotals } from "@/lib/scope"
+import { aggregate, districtIn, districtsOf, provById, scopeLabel, scopeTotals } from "@/lib/scope"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
@@ -16,13 +16,16 @@ import { cn } from "@/lib/utils"
 const KpiSheet = lazy(() => import("@/components/KpiSheet"))
 
 export function Overview() {
-  const { role, prov, sources } = useStore()
+  const { role, prov, dist, sources } = useStore()
   const r = ROLES[role]
   const [sel, setSel] = useState<string | null>(null)
   const [openKpi, setOpenKpi] = useState<KpiId | null>(null)
-  // Provincial and district users always look at their own province.
-  const selected = r.scope === "national" ? sel : prov
-  const t = scopeTotals(role, prov)
+  const own = districtIn(prov, dist).id
+  // Provincial users always look at their own province. District users start on their own
+  // district and can select any other district in the province to compare.
+  const selected =
+    r.scope === "national" ? sel : r.scope === "province" ? prov : sel && districtsOf(prov).some((d) => d.id === sel) ? sel : own
+  const t = scopeTotals(role, prov, dist)
 
   return (
     <section aria-labelledby="h-ov" className="space-y-6">
@@ -31,8 +34,8 @@ export function Overview() {
           Season 2026/27 at a glance
         </h1>
         <p className="mt-1 max-w-3xl text-muted-foreground">
-          {scopeLabel(role, prov)} view for the {r.name}. Every number shows which agency it came from and how fresh it is. Select a
-          figure to see its trend, definition and provincial breakdown.
+          {scopeLabel(role, prov, dist)} view for the {r.name}. Every number shows which agency it came from and how fresh it is.
+          Select a figure to see its trend, definition and {r.scope === "district" ? "how the province's districts compare" : "provincial breakdown"}.
         </p>
       </div>
 
@@ -95,7 +98,7 @@ export function Overview() {
         <ProvinceMap selected={selected} onSelect={setSel} />
         <div className="flex flex-col gap-6">
           <AlertsPanel />
-          <ProvinceDetail id={selected} />
+          {r.scope === "district" ? <DistrictDetail id={selected!} own={own} prov={prov} /> : <ProvinceDetail id={selected} />}
         </div>
       </div>
 
@@ -164,6 +167,57 @@ function ProvinceDetail({ id }: { id: string | null }) {
                 value={k.full(v)}
                 national={k.count ? `${Math.round((v / n) * 100)}% of national` : k.full(n)}
                 worse={!k.count && (k.higherIsBetter ? v < n : v > n)}
+              />
+            )
+          })}
+        </dl>
+        <Separator className="my-3" />
+        <p className="text-sm text-muted-foreground">Individual farmer records are never shown. Figures are totals or rates.</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+// A district's figures with its rank among the province's districts. Provincial totals are not shown.
+function DistrictDetail({ id, own, prov }: { id: string; own: string; prov: string }) {
+  const list = districtsOf(prov)
+  const d = list.find((x) => x.id === id)!
+  const mine = list.find((x) => x.id === own)!
+  const compare = id !== own
+  const rows = KPIS.filter((k) => k.province)
+  const rank = (k: Figure, higher = true) => `${rankIn(list, k, d.id, higher)} of ${list.length}`
+  return (
+    <Card key={id} className="border-t-4 border-t-accent motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2">
+      <CardHeader>
+        <CardTitle className="text-xl">
+          {d.name} District{!compare && <span className="ml-2 text-sm font-normal text-muted-foreground">your district</span>}
+        </CardTitle>
+        <CardDescription>
+          {compare
+            ? `Compared with ${mine.name}, your district. Rank is out of the ${list.length} districts in ${provById(prov).name} Province.`
+            : `Rank is out of the ${list.length} districts in ${provById(prov).name} Province, 1 being the best. Select another district on the map to compare.`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <dl className="grid grid-cols-[1fr_auto_auto] items-baseline gap-x-4 gap-y-2">
+          <dt className="text-xs text-muted-foreground" />
+          <dd className="text-right text-xs text-muted-foreground">{d.name}</dd>
+          <dd className="text-right text-xs text-muted-foreground">{compare ? mine.name : "Rank"}</dd>
+          {compare ? (
+            <DetailRow label="Women among farmers" value={d.women + "%"} national={mine.women + "%"} />
+          ) : (
+            <DetailRow label="Women among farmers" value={d.women + "%"} national={rank("women")} />
+          )}
+          {rows.map((k) => {
+            const v = k.province!(d)
+            const m = k.province!(mine)
+            return (
+              <DetailRow
+                key={k.id}
+                label={k.label}
+                value={k.full(v)}
+                national={compare ? k.full(m) : rank(k.id as Figure, k.higherIsBetter)}
+                worse={compare && !k.count && (k.higherIsBetter ? v < m : v > m)}
               />
             )
           })}

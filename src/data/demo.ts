@@ -14,6 +14,10 @@ export type Province = {
   price: number
 }
 
+// Any area with figures: a province or a district.
+export type Area = Omit<Province, "x" | "y" | "short"> & { short?: string }
+export type District = Area & { prov: string }
+
 export type DsaStatus = "ok" | "mid" | "no"
 
 export type Source = {

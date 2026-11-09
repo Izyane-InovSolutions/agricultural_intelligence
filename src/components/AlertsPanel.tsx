@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { ROLES, type RoleId } from "@/data/demo"
-import { scopeProvinces } from "@/lib/scope"
+import { scopeAreas } from "@/lib/scope"
 import { useStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
@@ -25,21 +25,23 @@ const STYLE = {
 }
 
 function useAlertItems(): AlertItem[] {
-  const { role, prov, sources } = useStore()
-  const list = scopeProvinces(role, prov)
+  const { role, prov, dist, sources } = useStore()
+  const list = scopeAreas(role, prov, dist)
+  // District ids can match province ids (Lusaka), so district alerts get their own keys.
+  const key = ROLES[role].scope === "district" ? "district:" : ""
   const src = (id: string) => sources.find((s) => s.id === id)!
   const out: AlertItem[] = []
   list
     .filter((p) => p.rain < 80)
     .sort((a, b) => a.rain - b.rain)
     .forEach((p) =>
-      out.push({ id: `rain:${p.id}`, kind: "risk", title: `Rainfall at ${p.rain}% of normal in ${p.name}`, msg: `ZMD bulletin, ${src("zmd").upd}. Alert threshold: 80%.` }),
+      out.push({ id: `rain:${key}${p.id}`, kind: "risk", title: `Rainfall at ${p.rain}% of normal in ${p.name}`, msg: `ZMD bulletin, ${src("zmd").upd}. Alert threshold: 80%.` }),
     )
   list
     .filter((p) => p.delivery < 70)
     .sort((a, b) => a.delivery - b.delivery)
     .forEach((p) =>
-      out.push({ id: `delivery:${p.id}`, kind: "warn", title: `Input delivery at ${p.delivery}% in ${p.name}`, msg: `ZIAMIS e-voucher, ${src("ziamis").upd}. Alert threshold: 70%.` }),
+      out.push({ id: `delivery:${key}${p.id}`, kind: "warn", title: `Input delivery at ${p.delivery}% in ${p.name}`, msg: `ZIAMIS e-voucher, ${src("ziamis").upd}. Alert threshold: 70%.` }),
     )
   sources
     .filter((s) => s.stale && s.run)

@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { INDICATORS, PROVINCES, ROLES } from "@/data/demo"
 import { lastSeasonValue, trend, type KpiId } from "@/data/trends"
 import { kpiById } from "@/lib/kpis"
-import { aggregate, scopeLabel, scopeTotals } from "@/lib/scope"
+import { aggregate, districtIn, districtsOf, provById, scopeLabel, scopeTotals } from "@/lib/scope"
+import { cn } from "@/lib/utils"
 import { useStore } from "@/lib/store"
 
 const chartConfig = {
@@ -17,34 +18,37 @@ const chartConfig = {
 } satisfies ChartConfig
 
 export default function KpiSheet({ kpiId, onClose }: { kpiId: KpiId | null; onClose: () => void }) {
-  const { role, prov, sources } = useStore()
+  const { role, prov, dist, sources } = useStore()
   const kpi = kpiId ? kpiById(kpiId) : null
 
   return (
     <Sheet open={!!kpi} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full overflow-y-auto data-[side=right]:sm:max-w-xl">
-        {kpi && <KpiDetail kpiId={kpi.id} role={role} prov={prov} sources={sources} />}
+        {kpi && <KpiDetail kpiId={kpi.id} role={role} prov={prov} dist={dist} sources={sources} />}
       </SheetContent>
     </Sheet>
   )
 }
 
-function KpiDetail({ kpiId, role, prov, sources }: { kpiId: KpiId } & Pick<ReturnType<typeof useStore>, "role" | "prov" | "sources">) {
+function KpiDetail({ kpiId, role, prov, dist, sources }: { kpiId: KpiId } & Pick<ReturnType<typeof useStore>, "role" | "prov" | "dist" | "sources">) {
   const kpi = kpiById(kpiId)
   const ind = INDICATORS.find((i) => i.name === kpi.indicator)!
   const src = sources.find((s) => s.id === kpi.sourceId)!
-  const now = kpi.value(scopeTotals(role, prov))
+  const now = kpi.value(scopeTotals(role, prov, dist))
   const data = trend(kpi.id, now)
   const before = lastSeasonValue(kpi.id, now)
   const national = kpi.value(aggregate(PROVINCES))
   const r = ROLES[role]
   const provinces = r.scope === "national" ? PROVINCES : PROVINCES.filter((p) => p.id === prov)
+  // District users compare districts within their province, never provincial totals.
+  const district = r.scope === "district"
+  const own = districtIn(prov, dist).id
 
   return (
     <>
       <SheetHeader>
         <SheetTitle className="text-xl text-primary">{kpi.label}</SheetTitle>
-        <SheetDescription>{scopeLabel(role, prov)}</SheetDescription>
+        <SheetDescription>{scopeLabel(role, prov, dist)}</SheetDescription>
       </SheetHeader>
       <div className="space-y-6 px-4 pb-6">
         <div className="flex flex-wrap items-end gap-3">
@@ -98,7 +102,48 @@ function KpiDetail({ kpiId, role, prov, sources }: { kpiId: KpiId } & Pick<Retur
           </a>
         </div>
 
-        {kpi.province && (
+        {kpi.province && district && (
+          <div>
+            <h3 className="mb-2 font-semibold">Districts in {provById(prov).name} Province</h3>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>District</TableHead>
+                  <TableHead className="text-right">Value</TableHead>
+                  <TableHead className="text-right">Rank</TableHead>
+                  <TableHead className="text-right">Vs last season</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[...districtsOf(prov)]
+                  .sort((a, b) => (kpi.higherIsBetter ? kpi.province!(b) - kpi.province!(a) : kpi.province!(a) - kpi.province!(b)))
+                  .map((d, i, list) => {
+                    const v = kpi.province!(d)
+                    return (
+                      <TableRow key={d.id} className={cn(d.id === own && "bg-accent/10 font-semibold")}>
+                        <TableCell>
+                          {d.name}
+                          {d.id === own && <span className="ml-1.5 text-xs font-normal text-muted-foreground">(yours)</span>}
+                        </TableCell>
+                        <TableCell className="text-right font-medium tabular-nums">{kpi.full(v)}</TableCell>
+                        <TableCell className="text-right text-muted-foreground tabular-nums">
+                          {i + 1} of {list.length}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Change now={v} before={lastSeasonValue(kpi.id, v)} higherIsBetter={kpi.higherIsBetter} />
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+              </TableBody>
+            </Table>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Individual farmer records are never shown. Figures are totals or rates.
+            </p>
+          </div>
+        )}
+
+        {kpi.province && !district && (
           <div>
             <h3 className="mb-2 font-semibold">By province</h3>
             <Table>

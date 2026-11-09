@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-import { AUDIENCES, BUDGET_RELEASED, PROVINCES, ROLES, type AudienceId, type Source } from "@/data/demo"
+import { AUDIENCES, BUDGET_RELEASED, PROVINCES, ROLES, type Area, type AudienceId, type Source } from "@/data/demo"
+import { DISTRICTS } from "@/data/districts"
 import { fmtDate, fmtN } from "@/lib/format"
-import { aggregate, provById } from "@/lib/scope"
+import { aggregate, districtIn, provById } from "@/lib/scope"
 import { briefKey, useStore, type BriefEvent } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
@@ -36,9 +37,12 @@ type BriefDoc = {
 }
 
 function buildBrief(aud: AudienceId, scope: string, sources: Source[]): BriefDoc {
-  const list = scope === "national" ? PROVINCES : [provById(scope)]
+  // Scope is "national", a province id, or "district:<id>".
+  const districtId = scope.startsWith("district:") ? scope.slice(9) : null
+  const d = districtId ? DISTRICTS.find((x) => x.id === districtId)! : null
+  const list: Area[] = d ? [d] : scope === "national" ? PROVINCES : [provById(scope)]
   const a = aggregate(list)
-  const where = scope === "national" ? "Zambia" : provById(scope).name + " Province"
+  const where = d ? `${d.name} District, ${provById(d.prov).name} Province` : scope === "national" ? "Zambia" : provById(scope).name + " Province"
   const dry = list.filter((p) => p.rain < 80).sort((x, y) => x.rain - y.rain)
   const slow = list.filter((p) => p.delivery < 70).sort((x, y) => x.delivery - y.delivery)
   const src = (id: string) => sources.find((s) => s.id === id)!
@@ -74,8 +78,10 @@ function buildBrief(aud: AudienceId, scope: string, sources: Source[]): BriefDoc
           ? `Cabinet is asked to note the situation and approve accelerated input distribution in ${slow.map((p) => p.name).join(" and ")}.`
           : "Cabinet is asked to note the situation."
         : watch.length
-          ? `Provinces to watch: ${watch.join(", ")}.`
-          : "No province is below alert thresholds.",
+          ? `${scope === "national" ? "Provinces" : "Areas"} to watch: ${watch.join(", ")}.`
+          : scope === "national"
+            ? "No province is below alert thresholds."
+            : "Nothing is below alert thresholds.",
   }
 }
 
@@ -103,12 +109,13 @@ ${doc.rows.map(([i, v, s, n]) => `<tr><td>${esc(i)}</td><td>${esc(v)}</td><td>${
 }
 
 export function Briefing() {
-  const { role, prov, sources, getBrief, advanceBrief, returnBrief, editBrief, resetBrief } = useStore()
+  const { role, prov, dist, sources, getBrief, advanceBrief, returnBrief, editBrief, resetBrief } = useStore()
   const r = ROLES[role]
   const national = r.scope === "national"
   const [aud, setAud] = useState<AudienceId>("cab")
   const [pickedScope, setScope] = useState("national")
-  const scope = national ? pickedScope : prov
+  const district = r.scope === "district"
+  const scope = national ? pickedScope : district ? `district:${districtIn(prov, dist).id}` : prov
   const [editing, setEditing] = useState<string | null>(null)
   const [returning, setReturning] = useState(false)
   const [comment, setComment] = useState("")
@@ -202,11 +209,15 @@ export function Briefing() {
                   </SelectTrigger>
                   <SelectContent>
                     {national && <SelectItem value="national">National</SelectItem>}
-                    {(national ? PROVINCES : [provById(prov)]).map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name} Province
-                      </SelectItem>
-                    ))}
+                    {district ? (
+                      <SelectItem value={scope}>{districtIn(prov, dist).name} District</SelectItem>
+                    ) : (
+                      (national ? PROVINCES : [provById(prov)]).map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} Province
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>

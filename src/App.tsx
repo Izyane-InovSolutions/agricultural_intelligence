@@ -26,10 +26,12 @@ import { SiteFooter } from "@/components/SiteFooter"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { Tour } from "@/components/Tour"
 import { accountById } from "@/data/accounts"
-import { ROLES } from "@/data/demo"
+import { PROVINCES, ROLES } from "@/data/demo"
 import { Landing } from "@/views/Landing"
 import { useStore } from "@/lib/store"
+import { districtIn, districtsOf } from "@/lib/scope"
 import { cn } from "@/lib/utils"
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "./components/ui/select"
 
 // Each page is its own download, so the first visit only fetches the page being opened.
 const Overview = lazy(() => import("@/views/Overview").then((m) => ({ default: m.Overview })))
@@ -90,7 +92,7 @@ export default function App() {
 function Dashboard() {
   const view = useHashView()
   const { Component } = VIEWS[view]
-  const { tourSeen, setTourSeen, session, setRole, setProv } = useStore()
+  const { tourSeen, setTourSeen, session, setRole, setProv, setDist } = useStore()
   // First-time visitors get the tour automatically; afterwards it starts from the header.
   const [tourStep, setTourStep] = useState<number | null>(tourSeen ? null : 0)
   const closeTour = () => {
@@ -101,6 +103,7 @@ function Dashboard() {
     if (a) {
       setRole(a.role)
       setProv(a.prov)
+      if (a.dist) setDist(a.dist)
     }
   }
 
@@ -125,7 +128,8 @@ function Dashboard() {
 }
 
 function Header({ view, onTour }: { view: ViewId; onTour: () => void }) {
-  const { resetAll } = useStore()
+  const { role, prov, dist, setRole, setProv, setDist, resetAll } = useStore()
+  const scope = ROLES[role].scope
   const online = useOnline()
 
   return (
@@ -146,6 +150,62 @@ function Header({ view, onTour }: { view: ViewId; onTour: () => void }) {
               <span className="inline-flex items-center gap-1.5 rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-accent-foreground">
                 <WifiOff className="size-3.5" /> Offline, showing saved data
               </span>
+            )}
+            {/* <label htmlFor="role" className="opacity-85">
+              Demo: view as
+            </label>
+            <Select
+              value={role}
+              onValueChange={(v) => {
+                const next = v as RoleId
+                setRole(next)
+                if (ROLES[next].scope === "district") setProv("central")
+              }}
+            >
+              <SelectTrigger id="role" size="sm" className="bg-white text-neutral-900 dark:bg-white dark:text-neutral-900">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(ROLES) as RoleId[]).map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {ROLES[k].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select> */}
+            {scope !== "national" && (
+              <Select
+                value={prov}
+                onValueChange={(v) => {
+                  setProv(v)
+                  if (scope === "district") setDist(districtIn(v, dist).id)
+                }}
+              >
+                <SelectTrigger size="sm" aria-label="Province" className="bg-white text-neutral-900 dark:bg-white dark:text-neutral-900">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROVINCES.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {scope === "district" && (
+              <Select value={districtIn(prov, dist).id} onValueChange={setDist}>
+                <SelectTrigger size="sm" aria-label="District" className="bg-white text-neutral-900 dark:bg-white dark:text-neutral-900">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {districtsOf(prov).map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
             <Button size="sm" variant="ghost" className="text-brand-foreground hover:bg-white/15 hover:text-brand-foreground" onClick={onTour}>
               <CircleHelp /> <span className="hidden sm:inline">Tour</span>
