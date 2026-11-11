@@ -2,11 +2,13 @@ import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
 import { BookOpen } from "lucide-react"
 import { Change } from "@/components/Change"
 import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { INDICATORS, PROVINCES, ROLES } from "@/data/demo"
+import { BUDGET, BUDGET_ALLOCATED, BUDGET_DISBURSED, INDICATORS, PROVINCES, ROLES } from "@/data/demo"
 import { lastSeasonValue, trend, type KpiId } from "@/data/trends"
+import { fmtZmwM } from "@/lib/format"
 import { kpiById } from "@/lib/kpis"
 import { aggregate, districtIn, districtsOf, provById, scopeLabel, scopeTotals } from "@/lib/scope"
 import { cn } from "@/lib/utils"
@@ -102,6 +104,8 @@ function KpiDetail({ kpiId, role, prov, dist, sources }: { kpiId: KpiId } & Pick
           </a>
         </div>
 
+        {kpi.id === "budget" && <BudgetBreakdown />}
+
         {kpi.province && district && (
           <div>
             <h3 className="mb-2 font-semibold">Districts in {provById(prov).name} Province</h3>
@@ -180,5 +184,62 @@ function KpiDetail({ kpiId, role, prov, dist, sources }: { kpiId: KpiId } & Pick
         )}
       </div>
     </>
+  )
+}
+
+// How the year's agriculture budget is split across programmes and how much each has received.
+function BudgetBreakdown() {
+  const lines = [...BUDGET].sort((a, b) => b.allocated - a.allocated)
+  const totals = [
+    ["Total budget", fmtZmwM(BUDGET_ALLOCATED)],
+    ["Released so far", fmtZmwM(BUDGET_DISBURSED)],
+    ["Still to release", fmtZmwM(BUDGET_ALLOCATED - BUDGET_DISBURSED)],
+  ]
+  return (
+    <div>
+      <h3 className="mb-2 font-semibold">Budget breakdown</h3>
+      <dl className="mb-4 grid grid-cols-3 gap-2">
+        {totals.map(([label, value], i) => (
+          <div key={label} className={cn("rounded-lg border p-3", i === 1 && "border-primary/40 bg-primary/5")}>
+            <dt className="text-xs text-muted-foreground">{label}</dt>
+            <dd className="text-lg font-semibold tabular-nums text-primary">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Programme</TableHead>
+            <TableHead className="text-right">Allocated</TableHead>
+            <TableHead className="text-right">Released</TableHead>
+            <TableHead className="w-28 text-right">Share released</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {lines.map((b) => {
+            const pct = Math.round((b.released / b.allocated) * 100)
+            return (
+              <TableRow key={b.programme}>
+                <TableCell className="whitespace-normal">
+                  <div className="font-medium">{b.programme}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {b.note}, {Math.round((b.allocated / BUDGET_ALLOCATED) * 100)}% of budget
+                  </div>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{fmtZmwM(b.allocated)}</TableCell>
+                <TableCell className="text-right font-medium tabular-nums">{fmtZmwM(b.released)}</TableCell>
+                <TableCell>
+                  <div className={cn("text-right text-sm font-medium tabular-nums", pct < 50 && "text-warning")}>{pct}%</div>
+                  <Progress value={pct} className="mt-1 h-1.5" aria-label={`${b.programme}: ${pct}% released`} />
+                </TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Programmes below 50% released are marked. Source: Ministry of Finance, IFMIS budget execution.
+      </p>
+    </div>
   )
 }

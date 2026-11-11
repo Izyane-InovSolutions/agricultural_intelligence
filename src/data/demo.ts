@@ -102,7 +102,20 @@ export const ROLES: Record<RoleId, Role> = {
   dist: { name: "District Agriculture Coordinator", label: "District Agriculture Coordinator", scope: "district", budget: false, sync: false, brief: "view" },
 }
 
-export const BUDGET_RELEASED = 58
+// Agriculture programme budget for the year, in millions of kwacha (synthetic).
+export type BudgetLine = { programme: string; note: string; allocated: number; released: number }
+export const BUDGET: BudgetLine[] = [
+  { programme: "Farmer Input Support Programme", note: "Seed and fertiliser, e-voucher", allocated: 6800, released: 4400 },
+  { programme: "Food reserves and crop marketing", note: "FRA maize purchases and storage", allocated: 3900, released: 2110 },
+  { programme: "Irrigation development", note: "Schemes, dams and boreholes", allocated: 1250, released: 410 },
+  { programme: "Extension and farmer training", note: "Camp officers, demonstration plots", allocated: 860, released: 470 },
+  { programme: "Agricultural research", note: "ZARI seed and soil research", allocated: 540, released: 260 },
+  { programme: "Management and support services", note: "Staff, transport, systems", allocated: 650, released: 470 },
+]
+export const BUDGET_ALLOCATED = BUDGET.reduce((a, b) => a + b.allocated, 0)
+export const BUDGET_DISBURSED = BUDGET.reduce((a, b) => a + b.released, 0)
+// The headline figure on the Budget released card.
+export const BUDGET_RELEASED = Math.round((BUDGET_DISBURSED / BUDGET_ALLOCATED) * 100)
 
 export type MapKey = "farmers" | "delivery" | "rain" | "fra"
 

@@ -13,3 +13,6 @@ export function fmtDateTime(d: Date) {
 }
 
 export const fmtDate = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+
+// Kwacha amounts held in millions: "ZMW 860 m", "ZMW 6.8 bn".
+export const fmtZmwM = (m: number) => (m >= 1000 ? `ZMW ${(m / 1000).toFixed(1).replace(/\.0$/, "")} bn` : `ZMW ${fmtN(m)} m`)
